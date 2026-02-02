@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>江月蝉鸣 | HTML弹窗</title>
+    <style>
+        /* 全局CSS变量 */
+        :root {
+            --btn-radius: 12px;
+            --btn-height: clamp(48px, 9vw, 52px);
+            --btn-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            --btn-hover-shadow: 0 6px 20px rgba(0,0,0,0.15);
+            --color-pink: linear-gradient(135deg, #ff69b4, #ff87b9);
+            --color-pink-hover: linear-gradient(135deg, #ff87b9, #ff9fc4);
+            --color-blue: linear-gradient(135deg, #4299e1, #63b3ed);
+            --color-blue-hover: linear-gradient(135deg, #63b3ed, #90cdf4);
+            --color-purple: linear-gradient(135deg, #9f7aea, #b794f4);
+            --color-purple-hover: linear-gradient(135deg, #b794f4, #d6bcfa);
+            --color-kuaishou: linear-gradient(135deg, #00c6ff, #0072ff);
+            --color-kuaishou-hover: linear-gradient(135deg, #0072ff, #0056b3);
+            --color-bilibili: linear-gradient(135deg, #fb7299, #fca5f1);
+            --color-bilibili-hover: linear-gradient(135deg, #fca5f1, #ff87b9);
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "微软雅黑", "PingFang SC", "Microsoft YaHei UI", sans-serif; }
+        /* 打字动画容器 */
+        .typing-container {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 1000;
+            font-size: clamp(1.5rem, 5vw, 28px);
+            text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        .typing-text {
+            border-right: 2px solid #ff69b4;
+            white-space: nowrap;
+            overflow: hidden;
+            color: #ff69b4;
+            position: relative;
+            display: inline-block;
+        }
+        .typing-text::after {
+            content: "";
+            position: absolute;
+            top: 50%; left: 0;
+            width: 0; height: 3px;
+            background: #ff69b4;
+            transform: translateY(-50%);
+            transition: width 1.2s cubic-bezier(0.2, 1, 0.2, 1);
+            z-index: 1;
+        }
+        .typing-text.line-active::after {
+            width: 100%;
+        }
+        /* 遮罩层 */
+        .mask {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, rgba(0,0,0,0.4), rgba(0,0,0,0.6));
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.8s ease, visibility 0.8s ease;
+        }
+        /* 弹窗主体 */
+        .popup {
+            background: linear-gradient(180deg, #ffffff 0%, #f9faff 100%);
+            border-radius: 50%;
+            overflow: hidden;
+            box-shadow: 0 15px 50px rgba(255,105,180,0.2), 0 5px 20px rgba(0,0,0,0.05);
+            border: 1px solid rgba(255,255,255,0.8);
+            width: 0;
+            min-height: 0;
+            transition: width 2.8s cubic-bezier(0.2, 1, 0.2, 1), 
+                        min-height 2.8s cubic-bezier(0.2, 1, 0.2, 1),
+                        border-radius 2.8s cubic-bezier(0.2, 1, 0.2, 1);
+        }
+        .mask.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .mask.active .popup {
+            width: 92%; max-width: 520px;
+            height: auto;
+            min-height: 500px;
+            border-radius: 32px;
+        }
+        /* 弹窗Banner（语义化header） */
+        .popup-banner {
+            width: 100%;
+            height: 0;
+            padding-bottom: 40%;
+            background: url("https://image.baidu.com/search/down?url=https://icdn.binmt.cc/2601/697404aab4a3b.jpg") no-repeat center;
+            background-size: cover;
+            position: relative;
+        }
+        .banner-mask {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(
+                to bottom, 
+                rgba(255,255,255,0.1),
+                rgba(0,0,0,0.1) 60%, 
+                rgba(0,0,0,0.2)
+            );
+        }
+        .banner-highlight {
+            position: absolute; top: 25px; left: 25px;
+            width: 50%; height: 35%;
+            background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 75%);
+            border-radius: 50%;
+            z-index: 1;
+            pointer-events: none;
+        }
+        .banner-dots {
+            position: absolute; top: 20px; right: 20px;
+            display: flex; gap: 12px;
+            z-index: 2;
+        }
+        .dot {
+            width: 14px; height: 14px;
+            border-radius: 50%;
+            background: #ff69b4;
+            box-shadow: 0 0 10px rgba(255,105,180,0.6), 0 2px 6px rgba(255,105,180,0.4);
+            transition: all 0.4s ease;
+        }
+        .dot:hover { transform: scale(1.3); box-shadow: 0 0 15px rgba(255,105,180,0.8), 0 3px 8px rgba(255,105,180,0.5); }
+        .dot:nth-child(2) { 
+            background: #87CEFA;
+            box-shadow: 0 0 10px rgba(135,206,250,0.6), 0 2px 6px rgba(135,206,250,0.4);
+        }
+        .dot:nth-child(2):hover { box-shadow: 0 0 15px rgba(135,206,250,0.8), 0 3px 8px rgba(135,206,250,0.5); }
+        .dot:nth-child(3) { 
+            background: #98FB98;
+            box-shadow: 0 0 10px rgba(152,251,152,0.6), 0 2px 6px rgba(152,251,152,0.4);
+        }
+        .dot:nth-child(3):hover { box-shadow: 0 0 15px rgba(152,251,152,0.8), 0 3px 8px rgba(152,251,152,0.5); }
+        /* 主体内容区（语义化main） */
+        .content-container {
+            width: 100%;
+            padding: 30px 6vw 25px;
+            max-height: 65vh;
+            overflow-y: auto;
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+        }
+        .stair-item {
+            opacity: 0;
+            transform: translateY(20px);
+            --initial-transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+            --scroll-transition: opacity 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), 
+                                 transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+            transition: var(--initial-transition);
+            will-change: opacity, transform;
+        }
+        .stair-item.initial-active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .stair-item.scroll-active {
+            opacity: 1;
+            transform: translateY(0);
+            transition: var(--scroll-transition);
+        }
+        .stair-item.scroll-hide {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: var(--scroll-transition);
+        }
+        .user-card {
+            display: flex; align-items: center;
+            margin-bottom: 30px;
+            gap: 4vw;
+        }
+        .avatar {
+            width: 18vw; 
+            aspect-ratio: 1/1;
+            max-width: 90px; 
+            max-height: 90px;
+            border-radius: 50%; 
+            border: 5px solid #fff;
+            box-shadow: 0 8px 25px rgba(255,105,180,0.25), 0 0 0 2px rgba(255,105,180,0.1);
+            background: url("https://image.baidu.com/search/down?url=https://icdn.binmt.cc/2512/6949094e1a574.jpg") no-repeat center;
+            background-size: cover; 
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            outline: none;
+            -webkit-tap-highlight-color: transparent;
+            position: relative;
+            /* 仅未点击时播放呼吸动画 */
+            animation: avatarPulse 2s ease infinite;
+        }
+        /* 点击时：取消呼吸动画，仅触发缩放+旋转 */
+        .avatar:active {
+            animation: none; /* 暂停呼吸动画 */
+            transform: scale(1.15) rotate(3deg);
+            box-shadow: 0 10px 30px rgba(255,105,180,0.35), 0 0 0 3px rgba(255,105,180,0.2);
+        }
+        .user-info { flex: 1; display: flex; flex-direction: column; }
+        .nickname {
+            font-size: clamp(2rem, 6vw, 38px);
+            color: #2d3748; font-weight: 700;
+            letter-spacing: 5px;
+            margin-bottom: 6px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            background: linear-gradient(to right, #2d3748, #4a5568);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .slogan {
+            font-size: clamp(1.1rem, 3.5vw, 20px);
+            letter-spacing: 2px;
+            font-style: italic;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            background: linear-gradient(90deg, 
+                #ff7ab8, #90d4ff, #a084e8, #b980f0,
+                #ff7ab8, #90d4ff, #a084e8, #b980f0,
+                #ff7ab8
+            );
+            background-size: 2000% 100%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        }
+        .divider {
+            width: 100%; height: 2px;
+            margin: 25px 0 30px;
+            border-radius: 1px;
+            background: linear-gradient(to right, rgba(255,105,180,0.1), #ffccd5, rgba(255,105,180,0.1));
+            box-shadow: 0 1px 3px rgba(255,105,180,0.05);
+        }
+        .notice {
+            font-size: clamp(0.9rem, 2.8vw, 17px);
+            color: #e53e3e;
+            line-height: 2.2;
+            margin-bottom: 25px;
+            padding: 18px;
+            background: #fef7fb;
+            border-radius: 16px;
+            border: 1px solid #fee5e5;
+            text-align: center;
+            box-shadow: 0 3px 10px rgba(255,105,180,0.05);
+        }
+        .btn-group-top {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+        button {
+            outline: none;
+            -webkit-tap-highlight-color: transparent;
+            border: none;
+        }
+        /* 通用按钮动画类 */
+        .common-btn {
+            height: var(--btn-height);
+            border-radius: var(--btn-radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(0.9rem, 2.3vw, 17px);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: var(--btn-shadow);
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .common-btn::before {
+            content: "";
+            position: absolute; top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.6s ease;
+        }
+        .common-btn:hover::before { left: 100%; }
+        .common-btn:hover {
+            box-shadow: var(--btn-hover-shadow);
+            transform: translateY(-2px);
+        }
+        .common-btn:active {
+            transform: translateY(0);
+            box-shadow: var(--btn-shadow);
+        }
+        /* 按钮颜色差异化 */
+        .btn-pink { background: var(--color-pink); color: #fff; }
+        .btn-pink:hover { background: var(--color-pink-hover); }
+        .btn-blue { background: var(--color-blue); color: #fff; }
+        .btn-blue:hover { background: var(--color-blue-hover); }
+        .btn-purple { background: var(--color-purple); color: #fff; }
+        .btn-purple:hover { background: var(--color-purple-hover); }
+        .btn-kuaishou { background: var(--color-kuaishou); color: #fff; }
+        .btn-kuaishou:hover { background: var(--color-kuaishou-hover); }
+        .btn-bilibili { background: var(--color-bilibili); color: #fff; }
+        .btn-bilibili:hover { background: var(--color-bilibili-hover); }
+        .combo-btn {
+            padding: 0 15px;
+            background: #f8f9fa; color: #4a5568;
+            border: 1px solid #e2e8f0;
+        }
+        .combo-btn:hover {
+            background: #f1f5f9; border-color: #ff69b4; color: #ff69b4;
+        }
+        .btn-group-bottom {
+            display: flex;
+            width: 100%;
+        }
+        .info-page {
+            width: 100%;
+            display: none;
+        }
+        #authorInfoPage .title-box {
+            font-size: clamp(1.6rem, 4.5vw, 26px);
+            color: #ff69b4;
+            font-weight: 700;
+            margin-bottom: 30px;
+            padding-bottom: 12px;
+            border-bottom: 2px dashed #ffd6e0;
+            display: flex; align-items: center; gap: 12px;
+            text-shadow: 0 2px 4px rgba(255,105,180,0.1);
+        }
+        #authorInfoPage .info-item { 
+            margin-bottom: 25px;
+            background: #fff;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.03);
+            border: 1px solid #f5f5f5;
+        }
+        #authorInfoPage .info-item p {
+            font-size: clamp(0.95rem, 3vw, 17px);
+            color: #4a5568;
+            line-height: 1.9;
+            margin-bottom: 12px;
+            padding: 10px 15px;
+            background: #f9fafe;
+            border-radius: 10px;
+            border-left: 4px solid #ff69b4;
+            transition: all 0.2s ease;
+        }
+        #authorInfoPage .info-item p:hover {
+            transform: translateX(5px);
+            box-shadow: 0 3px 10px rgba(0,0,0,0.05);
+        }
+        #authorInfoPage .info-item h3 {
+            font-size: clamp(1.2rem, 3.5vw, 20px);
+            color: #9f7aea;
+            margin-bottom: 18px;
+            padding: 5px 0;
+            border-bottom: 1px solid #f0e6ff;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .site-show-wrap {
+            width: 100%;
+        }
+        .site-show-title {
+            font-size: clamp(1.5rem, 4vw, 24px);
+            color: #333;
+            font-weight: 700;
+            margin-bottom: 20px;
+            text-align: center;
+            letter-spacing: 2px;
+            position: relative;
+        }
+        .site-show-title::after {
+            content: "";
+            display: block;
+            width: 60px;
+            height: 3px;
+            background: linear-gradient(90deg, #ff69b4, #87CEFA);
+            border-radius: 3px;
+            margin: 10px auto 0;
+        }
+        .site-cards {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            width: 100%;
+        }
+        .site-card {
+            width: 100%;
+            border-radius: 16px;
+            overflow: hidden;
+            background: #fff;
+            box-shadow: 0 3px 12px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+        }
+        .site-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+        }
+        .site-card-img {
+            width: 100%;
+            height: 0;
+            padding-bottom: 40%;
+            position: relative;
+            overflow: hidden;
+        }
+        .site-card-img img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+        }
+        .site-card-text {
+            padding: 15px 20px;
+        }
+        .site-card-name {
+            font-size: clamp(1.1rem, 3vw, 18px);
+            color: #2d3748;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .site-card-desc {
+            font-size: clamp(0.85rem, 2.5vw, 14px);
+            color: #718096;
+            line-height: 1.5;
+        }
+        .site-show-desc {
+            font-size: clamp(0.9rem, 2.8vw, 15px);
+            color: #4a5568;
+            text-align: center;
+            margin-top: 25px;
+            line-height: 1.8;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 12px;
+        }
+        .back-btn {
+            margin-top: 20px;
+        }
+        .content-container::-webkit-scrollbar { width: 8px; }
+        .content-container::-webkit-scrollbar-track {
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
+        .content-container::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #ff69b4, #9f7aea);
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        /* 小屏适配（375px以下） */
+        @media (max-width: 375px) {
+            .btn-group-top { gap: 8px; }
+            .common-btn, .combo-btn { font-size: clamp(0.85rem, 2.1vw, 16px); }
+            .combo-btn { gap: 6px; }
+            .nickname { letter-spacing: 3px; }
+            .notice { padding: 15px; margin-bottom: 20px; }
+            .content-container { padding: 25px 5vw 20px; }
+            .site-card-text { padding: 12px 15px; }
+            .site-show-desc { padding: 10px; margin-top: 20px; }
+        }
+        /* 超小屏适配（320px以下） */
+        @media (max-width: 320px) {
+            .common-btn {
+                font-size: clamp(0.8rem, 2vw, 14px);
+                padding: 0 8px;
+            }
+            .avatar {
+                width: 15vw;
+            }
+            .content-container {
+                padding: 20px 4vw 15px;
+            }
+        }
+        .contact-mask {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .contact-mask.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .contact-popup {
+            width: 85%; max-width: 320px;
+            background: #fff;
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transform: scale(0.8);
+            transition: transform 0.3s ease;
+        }
+        .contact-mask.show .contact-popup {
+            transform: scale(1);
+        }
+        .contact-title {
+            font-size: 18px;
+            color: #333;
+            text-align: center;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+        .contact-options {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .site-tip-mask {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            visibility: hidden;
+        }
+        .site-tip-mask.show {
+            opacity: 1;
+            pointer-events: auto;
+            visibility: visible;
+        }
+        .site-tip-popup {
+            width: 85%; max-width: 320px;
+            background: #fff;
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+        .site-tip-text {
+            font-size: 16px;
+            color: #4a5568;
+            margin-bottom: 20px;
+            line-height: 1.8;
+        }
+        /* 头像彩蛋弹窗 */
+        .avatar-popup-mask {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1001;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        .avatar-popup-mask.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        .avatar-popup-content {
+            width: 85%; max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            padding: 20px 0;
+        }
+        .avatar-popup-img {
+            width: 100%; max-width: 350px;
+            height: auto;
+            border-radius: 24px;
+            box-shadow: 0 10px 30px rgba(255,105,180,0.3);
+            object-fit: cover;
+            border: 3px solid #ffffff;
+            border-radius: 28px;
+            loading: lazy;
+        }
+        .avatar-popup-text {
+            font-size: clamp(1rem, 3vw, 18px);
+            color: #fff;
+            text-align: center;
+            line-height: 1.8;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            width: 100%;
+            padding: 0 10px;
+        }
+        .avatar-popup-close {
+            margin-top: 5px;
+            padding: 10px 30px;
+        }
+        /* 动画关键帧 */
+        @keyframes slideDown {
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slideRight {
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes slideLeft {
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+        @keyframes fadeUp {
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes avatarPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        /* 仅首次激活弹窗时触发分段动画 */
+        .mask.first-active .popup-banner {
+            opacity: 0;
+            transform: translateY(-30px);
+            animation: slideDown 0.5s ease 0.3s forwards;
+        }
+        .mask.first-active .user-card,
+        .mask.first-active .divider {
+            opacity: 0;
+            transform: translateX(-20px);
+            animation: slideRight 0.8s ease 1s forwards;
+        }
+        .mask.first-active .notice {
+            opacity: 0;
+            transform: translateX(20px);
+            animation: slideLeft 0.8s ease 1s forwards;
+        }
+        .mask.first-active .btn-group-top {
+            opacity: 0;
+            animation: fadeIn 0.6s ease 1.5s forwards;
+        }
+        .mask.first-active .btn-group-bottom {
+            opacity: 0;
+            transform: translateY(10px);
+            animation: fadeUp 0.6s ease 2s forwards;
+        }
+        /* 非首次进入（从子页面返回）时，主页面元素直接显示 */
+        .mask.active:not(.first-active) .popup-banner,
+        .mask.active:not(.first-active) .user-card,
+        .mask.active:not(.first-active) .divider,
+        .mask.active:not(.first-active) .notice,
+        .mask.active:not(.first-active) .btn-group-top,
+        .mask.active:not(.first-active) .btn-group-bottom {
+            opacity: 1;
+            transform: none;
+            animation: none;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 打字动画容器 -->
+    <div class="typing-container">
+        <div class="typing-text" id="typingText">-独江赏皓月 雅听蝉鸣起-</div>
+    </div>
+    <div class="mask">
+        <div class="popup">
+            <!-- 语义化header：弹窗Banner区 -->
+            <header class="popup-banner">
+                <div class="banner-mask"></div>
+                <div class="banner-highlight"></div>
+                <div class="banner-dots">
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                </div>
+            </header>
+            <!-- 语义化main：主体内容区 -->
+            <main class="content-container" id="contentContainer">
+                <!-- 语义化section：主页面 -->
+                <section class="main-page" id="mainPage">
+                    <div class="user-card">
+                        <div class="avatar"></div>
+                        <div class="user-info">
+                            <div class="nickname">江月蝉鸣</div>
+                            <div class="slogan" id="slogan">-独江赏皓月 雅听蝉鸣起-</div>
+                        </div>
+                    </div>
+                    <div class="divider"></div>
+                    <div class="notice">
+                        1. 仅用做于技术学习，禁止商用；<br>
+                        2. 版权归原作者所有，侵权立删；<br>
+                        3. 违规使用风险自担，本人无责。<br>
+                    </div>
+                    <div class="btn-group-top">
+                        <button class="common-btn btn-pink" id="aboutAuthor">关于作者</button>
+                        <button class="common-btn btn-blue" id="contactAuthor">联系作者</button>
+                        <button class="common-btn btn-purple" id="siteShowBtn">站点展示</button>
+                    </div>
+                    <div class="btn-group-bottom">
+                        <button class="common-btn combo-btn" id="closeWithNeverShow">
+                            <span>关闭并不再显示</span>
+                        </button>
+                    </div>
+                </section>
+                <!-- 语义化section：作者信息页 -->
+                <section class="info-page" id="authorInfoPage">
+                    <div class="title-box stair-item">😜 作/者/资/料</div>
+                    <div class="info-item">
+                        <p class="stair-item">网名：江月蝉鸣</p>
+                        <p class="stair-item">性别：保密</p>
+                        <p class="stair-item">年龄：暂不可告<br>[一位有理想的懒人]</p>
+                        <p class="stair-item">爱好：爱你3000遍</p>
+                        <p class="stair-item">性格：EOM时喜欢听歌</p>
+                        <p class="stair-item">梦想：实现财富自由</p>
+                        <p class="stair-item">个性：懒是我的代名词</p>
+                        <p class="stair-item">语录：凌晨的眼泪算我爱你的经历吗</p>
+                        <p class="stair-item">语录：连选择题四个选项都选不对，又怎么能在茫茫人海中选对一个人呢.</p>
+                    </div>
+                    <div class="info-item">
+                        <h3 class="stair-item">😜 个/人/介/绍</h3>
+                        <p class="stair-item">本人学识渊博，经验丰富，代码风骚，效率恐怖。C/C++，Python，HTML，Java，Lua等多种语言无不精通，熟练掌握各种框架。</p>
+                        <p class="stair-item">会DDOS一秒钟死一个站，会注入，会上传，会Xss，会破解，会嗅探，会开发，会业务，会运维，会渗透。互联网内，我无处不在。</p>
+                        <p class="stair-item">全国漏洞认识深刻，熟练掌握各种操作系统内核。认真学习过《黑客攻防技术宝典》，《逆向工程》，《游戏waigua攻防艺术》等专业书籍。深山苦练十余载，一天只睡2小时。</p>
+                        <p class="stair-item">听指挥，执行快，脾气好，不喷人，操作虎，意识强，渗透快，shell多，能过狗，能过盾。</p>
+                        <p class="stair-item">千里之外取服务器首级，瞬息之间爆管理员狗头，压安全狗如压章齐。电话通知出Bug后，秒登vpn，千里之外定位问题，瞬息之间修复上线。</p>
+                        <p class="stair-item">只有你想不到的，没有我做不到的。</p>
+                        <p class="stair-item">其实以上都是吹的，我只会摸鱼划水(. ❛ ᴗ ❛.)</p>
+                    </div>
+                    <div class="info-item">
+                        <h3 class="stair-item">😜 网/站/运/行/困/难</h3>
+                        <p class="stair-item">服务器最近遭受DDOS攻击，官方部分站点已瘫痪，恢复时间不确定。主页随时可能托管在GitHub或者虚拟主机上，速度相对较慢，请耐心等待恢复，还您一个舒适的欣赏环境。哈哈哈哈哈哈嗝~</p>
+                    </div>
+                    <button class="common-btn btn-pink back-btn stair-item" id="authorBackBtn">返回</button>
+                </section>
+                <!-- 语义化section：站点展示页 -->
+                <section class="info-page" id="siteShowPage">
+                    <div class="site-show-wrap stair-item">
+                        <div class="site-show-title stair-item">站点展示</div>
+                        <div class="site-cards stair-item">
+                            <div class="site-card stair-item">
+                                <div class="site-card-img">
+                                    <img src="https://image.baidu.com/search/down?url=https://icdn.binmt.cc/2601/6974cc0f541a7.jpg" alt="官方站点封面" loading="lazy" width="800" height="320">
+                                </div>
+                                <div class="site-card-text">
+                                    <div class="site-card-name">官方站点</div>
+                                    <div class="site-card-desc">注：如果官方站点打不开则因为服务器被DOS了</div>
+                                </div>
+                            </div>
+                            <div class="site-card stair-item">
+                                <div class="site-card-img">
+                                    <img src="https://image.baidu.com/search/down?url=https://icdn.binmt.cc/2601/6974ccc7ee04c.jpg" alt="个人博客封面" loading="lazy" width="800" height="320">
+                                </div>
+                                <div class="site-card-text">
+                                    <div class="site-card-name">个人博客</div>
+                                    <div class="site-card-desc">爱生活，爱分享</div>
+                                </div>
+                            </div>
+                            <div class="site-card stair-item">
+                                <div class="site-card-img">
+                                    <img src="https://image.baidu.com/search/down?url=https://icdn.binmt.cc/2601/6974cd4c94957.jpg" alt="LSP软件集封面" loading="lazy" width="800" height="320">
+                                </div>
+                                <div class="site-card-text">
+                                    <div class="site-card-name">LSP软件集</div>
+                                    <div class="site-card-desc">你喜欢的这里都有哦~</div>
+                                </div>
+                            </div>
+                            <div class="site-card stair-item">
+                                <div class="site-card-img">
+                                    <img src="https://image.baidu.com/search/down?url=https://icdn.binmt.cc/2601/6974d09028244.jpg" alt="资源分享封面" loading="lazy" width="800" height="320">
+                                </div>
+                                <div class="site-card-text">
+                                    <div class="site-card-name">资源分享</div>
+                                    <div class="site-card-desc">这么良心 给点支持一下叭</div>
+                                </div>
+                            </div>
+                            <div class="site-card stair-item">
+                                <div class="site-card-img">
+                                    <img src="https://image.baidu.com/search/down?url=https://icdn.binmt.cc/2601/6974ce62dd39b.jpg" alt="技术分享封面" loading="lazy" width="800" height="320">
+                                </div>
+                                <div class="site-card-text">
+                                    <div class="site-card-name">技术分享</div>
+                                    <div class="site-card-desc">日后要是出祸来 别提我们</div>
+                                </div>
+                            </div>
+                            <div class="site-card stair-item">
+                                <div class="site-card-img">
+                                    <img src="https://image.baidu.com/search/down?url=https://icdn.binmt.cc/2601/6974cea8754f6.jpg" alt="作者团队封面" loading="lazy" width="800" height="320">
+                                </div>
+                                <div class="site-card-text">
+                                    <div class="site-card-name">作者团队</div>
+                                    <div class="site-card-desc">全员懒人 懒久了也是种自律</div>
+                                </div>
+                            </div>
+                            <div class="site-card stair-item">
+                                <div class="site-card-img">
+                                    <img src="https://image.baidu.com/search/down?url=https://icdn.binmt.cc/2601/6974d093ddcfe.jpg" alt="迪奥很大封面" loading="lazy" width="800" height="320">
+                                </div>
+                                <div class="site-card-text">
+                                    <div class="site-card-name">迪奥很大</div>
+                                    <div class="site-card-desc">就很大~</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="site-show-desc stair-item">
+                            优质的站点就应该被展示出来！
+                        </div>
+                        <button class="common-btn btn-pink back-btn stair-item" id="siteBackBtn">返回</button>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+    <div class="contact-mask" id="contactMask">
+        <div class="contact-popup">
+            <h2 class="contact-title">选择联系平台</h2>
+            <div class="contact-options">
+                <button class="common-btn btn-kuaishou" id="kuaishouBtn">
+                    <span>快手</span>
+                </button>
+                <button class="common-btn btn-bilibili" id="bilibiliBtn">
+                    <span>B站</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="site-tip-mask" id="siteTipMask">
+        <div class="site-tip-popup">
+            <div class="site-tip-text">作者懒得运维，所以站点暂时不开放</div>
+            <button class="common-btn btn-pink" id="siteTipClose">确定</button>
+        </div>
+    </div>
+    <!-- 头像彩蛋弹窗 -->
+    <div class="avatar-popup-mask" id="avatarPopupMask">
+        <div class="avatar-popup-content">
+            <img src="https://image.baidu.com/search/down?url=https://icdn.binmt.cc/2601/6976c7b97910e.png" alt="隐藏图片" class="avatar-popup-img" loading="lazy" width="350" height="250">
+            <div class="avatar-popup-text">
+                恭喜解锁彩色的蛋！
+            </div>
+            <button class="common-btn btn-pink avatar-popup-close" id="avatarPopupClose">关闭</button>
+        </div>
+    </div>
+    <!-- JS延迟加载 -->
+    <script defer>
+        // 元素获取
+        const mainPage = document.getElementById('mainPage');
+        const authorInfoPage = document.getElementById('authorInfoPage');
+        const siteShowPage = document.getElementById('siteShowPage');
+        const aboutAuthor = document.getElementById('aboutAuthor');
+        const contactAuthor = document.getElementById('contactAuthor');
+        const siteShowBtn = document.getElementById('siteShowBtn');
+        const closeWithNeverShow = document.getElementById('closeWithNeverShow');
+        const authorBackBtn = document.getElementById('authorBackBtn');
+        const siteBackBtn = document.getElementById('siteBackBtn');
+        const slogan = document.getElementById('slogan');
+        const mask = document.querySelector('.mask');
+        const popup = document.querySelector('.popup');
+        const contentContainer = document.getElementById('contentContainer');
+        const typingContainer = document.querySelector('.typing-container');
+        const typingText = document.getElementById('typingText');
+        const avatar = document.querySelector('.avatar');
+        const avatarPopupMask = document.getElementById('avatarPopupMask');
+        const avatarPopupClose = document.getElementById('avatarPopupClose');
+        const contactMask = document.getElementById('contactMask');
+        const kuaishouBtn = document.getElementById('kuaishouBtn');
+        const bilibiliBtn = document.getElementById('bilibiliBtn');
+        const siteTipMask = document.getElementById('siteTipMask');
+        const siteTipClose = document.getElementById('siteTipClose');
+               
+        let avatarClickCount = 0;        // 头像点击计数器
+        let isEggConditionMet = false;   // 彩蛋条件是否达成
+        let longPressTimer = null;       // 长按定时器
+        let timeoutTimer = null;        // 超时重置定时器
+        const LONG_PRESS_DURATION = 800; // 长按触发时长
+        const TIMEOUT_DURATION = 2000;  // 超时重置时长
+        
+        // 核心：闭包锁死首次状态，仅首次返回true
+        const isFirstEnter = (() => {
+            let isFirst = true;
+            return () => {
+                const result = isFirst;
+                isFirst = false;
+                return result;
+            };
+        })();
+        
+        let isInitialAnimated = {
+            author: false,
+            site: false
+        };
+        
+        // 打字动画函数
+        function typeText(text, element, speed = 150) {
+            return new Promise((resolve) => {
+                let index = 0;
+                element.textContent = '';
+                typingContainer.style.opacity = 1;
+                const interval = setInterval(() => {
+                    if (index < text.length) {
+                        element.textContent += text.charAt(index);
+                        index++;
+                    } else {
+                        clearInterval(interval);
+                        element.style.borderRight = 'none';
+                        resolve();
+                    }
+                }, speed);
+            });
+        }
+        
+        // 中线划字动画函数
+        function lineAnimation(element) {
+            return new Promise((resolve) => {
+                element.classList.add('line-active');
+                setTimeout(resolve, 1200);
+            });
+        }
+        
+        // 首次动画：调整类添加顺序+延迟移除类
+        document.addEventListener('DOMContentLoaded', async function() {
+            // 打字+划线动画
+            await typeText("请赐予我一把斩断过去的剑", typingText);
+            await lineAnimation(typingText);
+            
+            // 隐藏打字容器
+            typingContainer.style.opacity = 0;
+            setTimeout(() => {
+                typingContainer.style.display = 'none';
+                
+                // 仅首次进入时，触发弹窗+首次元素动画
+                if (isFirstEnter()) {
+                    // 添加first-active类（触发元素动画）
+                    mask.classList.add('first-active');
+                    // 触发重绘，确保CSS识别类变化
+                    void mask.offsetWidth;
+                    // 添加active类（触发弹窗显示动画）
+                    mask.classList.add('active');
+                    // 首次动画，几秒后移除first-active类
+                    setTimeout(() => {
+                        mask.classList.remove('first-active');
+                    }, 3000);
+                } else {
+                    // 非首次直接显示弹窗
+                    mask.classList.add('active');
+                }
+            }, 0);
+        });
+        
+        // 页面切换逻辑：不影响mask状态，仅切换内容
+        function showMainPage() {
+            mainPage.style.display = 'block';
+            authorInfoPage.style.display = 'none';
+            siteShowPage.style.display = 'none';
+            isInitialAnimated.author = false;
+            isInitialAnimated.site = false;
+            
+            // 清除子页面动画残留
+            document.querySelectorAll('.stair-item').forEach(item => {
+                item.classList.remove('initial-active', 'scroll-active', 'scroll-hide');
+            });
+        }
+        
+        function showAuthorInfoPage() {
+            mainPage.style.display = 'none';
+            authorInfoPage.style.display = 'block';
+            siteShowPage.style.display = 'none';
+            contentContainer.scrollTop = 0;
+        
+            if (!isInitialAnimated.author) {
+                const stairItems = authorInfoPage.querySelectorAll('.stair-item');
+                stairItems.forEach((item, index) => {
+                    item.classList.remove('scroll-active', 'scroll-hide');
+                    setTimeout(() => item.classList.add('initial-active'), index * 50);
+                });
+                isInitialAnimated.author = true;
+                setTimeout(() => checkStairItems(authorInfoPage), 800);
+            } else {
+                checkStairItems(authorInfoPage);
+            }
+        }
+        
+        function showSiteShowPage() {
+            mainPage.style.display = 'none';
+            authorInfoPage.style.display = 'none';
+            siteShowPage.style.display = 'block';
+            contentContainer.scrollTop = 0;
+        
+            if (!isInitialAnimated.site) {
+                const stairItems = siteShowPage.querySelectorAll('.stair-item');
+                stairItems.forEach((item, index) => {
+                    item.classList.remove('scroll-active', 'scroll-hide');
+                    setTimeout(() => item.classList.add('initial-active'), index * 50);
+                });
+                isInitialAnimated.site = true;
+                setTimeout(() => checkStairItems(siteShowPage), 800);
+            } else {
+                checkStairItems(siteShowPage);
+            }
+        }
+        
+        function checkStairItems(page) {
+            const stairItems = page.querySelectorAll('.stair-item');
+            const containerRect = contentContainer.getBoundingClientRect();
+            const visibleTop = containerRect.top + 20;
+            const visibleBottom = containerRect.bottom - 20;
+        
+            stairItems.forEach(item => {
+                const rect = item.getBoundingClientRect();
+                if (rect.bottom > visibleTop && rect.top < visibleBottom) {
+                    item.classList.remove('initial-active', 'scroll-hide');
+                    item.classList.add('scroll-active');
+                } else {
+                    item.classList.remove('initial-active', 'scroll-active');
+                    item.classList.add('scroll-hide');
+                }
+            });
+        }
+        
+        // 事件绑定
+        aboutAuthor.addEventListener('click', showAuthorInfoPage);
+        authorBackBtn.addEventListener('click', showMainPage);
+        siteBackBtn.addEventListener('click', showMainPage);
+        
+        contentContainer.addEventListener('scroll', () => {
+            if (authorInfoPage.style.display === 'block') checkStairItems(authorInfoPage);
+            if (siteShowPage.style.display === 'block') checkStairItems(siteShowPage);
+        });
+        
+        window.addEventListener('resize', () => {
+            if (authorInfoPage.style.display === 'block') checkStairItems(authorInfoPage);
+            if (siteShowPage.style.display === 'block') checkStairItems(siteShowPage);
+        });
+        
+        function closePopup() {
+            popup.style.transition = 'width 0.5s ease, height 0.5s ease, border-radius 0.5s ease';
+            popup.style.width = '0';
+            popup.style.height = '0';
+            popup.style.borderRadius = '50%';
+            mask.style.opacity = 0;
+            setTimeout(() => {
+                mask.style.display = 'none';
+                if (window.Epic) Epic.dismiss();
+            }, 500);
+        }
+        
+        closeWithNeverShow.addEventListener('click', closePopup);
+        
+        // 无缝渐变动画：仅激活时执行
+        let animationDuration = 20;
+        let frameRate = 60;
+        let totalFrames = animationDuration * frameRate;
+        let currentFrame = 0;
+        
+        function seamlessGradient() {
+            if (!mask.classList.contains('active')) {
+                requestAnimationFrame(seamlessGradient);
+                return;
+            }
+            currentFrame = (currentFrame + 1) % totalFrames;
+            let position = (currentFrame / totalFrames) * 100;
+            slogan.style.backgroundPosition = `${position}% 50%`;
+            requestAnimationFrame(seamlessGradient);
+        }
+        
+        slogan.style.animation = 'none';
+        seamlessGradient();
+        
+        // 联系弹窗逻辑
+        contactAuthor.addEventListener('click', () => contactMask.classList.add('show'));
+        
+        function hideContactPopup() {
+            contactMask.classList.remove('show');
+        }
+        contactMask.addEventListener('click', (e) => e.target === contactMask && hideContactPopup());
+        
+        kuaishouBtn.addEventListener('click', () => {
+            window.open("https://v.kuaishou.com/JK1RGvM3", '_blank');
+            hideContactPopup();
+            alert('已为你打开作者快手主页～');
+        });
+        
+        bilibiliBtn.addEventListener('click', () => {
+            window.open("https://b23.tv/aAm8RD5", '_blank');
+            hideContactPopup();
+            alert('已为你打开作者B站主页～');
+        });
+        
+        // 站点提示逻辑
+        siteShowBtn.addEventListener('click', () => siteTipMask.classList.add('show'));
+        
+        siteTipClose.addEventListener('click', () => {
+            siteTipMask.classList.remove('show');
+            setTimeout(showSiteShowPage, 50);
+        });
+        siteTipMask.addEventListener('click', (e) => e.target === siteTipMask && siteTipMask.classList.remove('show'));
+        
+        // 头像彩蛋逻辑
+        avatar.addEventListener('click', () => {
+            if (timeoutTimer) clearTimeout(timeoutTimer);
+            
+            if (!isEggConditionMet) {
+                avatarClickCount++;
+                if (avatarClickCount === 4) {
+                    isEggConditionMet = true;
+                    timeoutTimer = setTimeout(() => {
+                        resetEggState();
+                    }, TIMEOUT_DURATION);
+                }
+            }
+        });
+        
+        avatar.addEventListener('mousedown', startLongPress);
+        avatar.addEventListener('touchstart', startLongPress, { passive: true });
+        
+        function startLongPress() {
+            if (isEggConditionMet) {
+                longPressTimer = setTimeout(() => {
+                    avatarPopupMask.classList.add('show');
+                    if (timeoutTimer) clearTimeout(timeoutTimer);
+                    resetEggState();
+                }, LONG_PRESS_DURATION);
+            }
+        }
+        
+        function cancelLongPress() {
+            if (longPressTimer) {
+                clearTimeout(longPressTimer);
+                longPressTimer = null;
+            }
+        }
+        avatar.addEventListener('mouseup', cancelLongPress);
+        avatar.addEventListener('mouseleave', cancelLongPress);
+        avatar.addEventListener('touchend', cancelLongPress);
+        avatar.addEventListener('touchmove', cancelLongPress);
+        
+        function resetEggState() {
+            isEggConditionMet = false;
+            avatarClickCount = 0;
+            cancelLongPress();
+            if (timeoutTimer) {
+                clearTimeout(timeoutTimer);
+                timeoutTimer = null;
+            }
+        }
+        
+        avatarPopupClose.addEventListener('click', () => {
+            avatarPopupMask.classList.remove('show');
+            resetEggState();
+        });
+    </script>
+</body>
+
+</html>
